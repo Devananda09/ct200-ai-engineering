@@ -3,7 +3,12 @@ from __future__ import annotations
 from parser.models import DocumentNode, DocumentSection
 
 
-def build_hierarchy(sections: list[DocumentSection]) -> list[DocumentNode]:
+import hashlib
+
+def build_hierarchy(
+    sections: list[DocumentSection],
+    tables: list[dict] | None = None,
+) -> list[DocumentNode]:
     """
     Convert flat document sections into a hierarchical tree.
 
@@ -27,13 +32,30 @@ def build_hierarchy(sections: list[DocumentSection]) -> list[DocumentNode]:
     nodes: dict[str, DocumentNode] = {}
     roots: list[DocumentNode] = []
 
+    tables_by_page: dict[int, list[dict]] = {}
+    if tables:
+        for tab in tables:
+            pg = tab.get("page_number", 1)
+            tables_by_page.setdefault(pg, []).append(tab)
+
     for section in sections:
+        # Compute deterministic SHA-256 content hash
+        hash_digest = hashlib.sha256(section.content.encode("utf-8")).hexdigest()
+
+        # Check for matching tables on the section's pages
+        section_tables: list[dict] = []
+        for p in range(section.page_start, section.page_end + 1):
+            if p in tables_by_page:
+                section_tables.extend(tables_by_page[p])
+
         node = DocumentNode(
             node_id=section.section_number,
             heading=section.title,
             level=section.level,
             body_text=section.content,
+            content_hash=hash_digest,
             page_number=section.page_start,
+            tables=section_tables,
         )
 
         nodes[section.section_number] = node
@@ -51,6 +73,7 @@ def build_hierarchy(sections: list[DocumentSection]) -> list[DocumentNode]:
             parent.children.append(node)
 
     return roots
+
 
 
 def _find_existing_parent(
@@ -83,4 +106,15 @@ def _find_existing_parent(
         if candidate in nodes:
             return candidate
 
+    return None
+
+
+def find_node(nodes: list[DocumentNode], node_id: str) -> DocumentNode | None:
+    """Recursively search for a node by node_id in the hierarchy tree."""
+    for node in nodes:
+        if node.node_id == node_id:
+            return node
+        found = find_node(node.children, node_id)
+        if found:
+            return found
     return None

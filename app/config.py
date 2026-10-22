@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     docs_v1_path: Path = Path("data/ct200_manual.pdf")
     docs_v2_path: Path = Path("data/ct200_manual_v2.pdf")
 
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-1.5-flash"
+
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -51,3 +51,10 @@ htmlcov/
 
 # Logs
 *.log
+
+# Databases & local data
+*.db
+*.sqlite
+*.sqlite3
+data/output/
+

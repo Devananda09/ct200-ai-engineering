@@ -90,7 +90,12 @@ class ParsedDocument:
         default_factory=list
     )
 
+    tables: list[dict] = field(default_factory=list)
+    tree: list[DocumentNode] = field(default_factory=list)
+
     raw_text: str = ""
+
+
 
 
 @dataclass
@@ -128,13 +133,18 @@ class DocumentNode:
     level: int
 
     body_text: str = ""
+    content_hash: str = ""
 
     page_number: Optional[int] = None
     parent_id: Optional[str] = None
 
+    tables: list[dict] = field(default_factory=list)
+    figures: list[dict] = field(default_factory=list)
+
     children: list["DocumentNode"] = field(
         default_factory=list
     )
+
 
 
 @dataclass

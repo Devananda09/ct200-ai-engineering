@@ -1,0 +1,22 @@
+{
+  "doc_v1_id": "ct200_v1",
+  "doc_v2_id": "ct200_v2",
+  "sections_added": [
+    "5.3"
+  ],
+  "sections_removed": [],
+  "sections_modified": [
+    "2.1.1.1",
+    "3.2",
+    "4.2",
+    "4.3"
+  ],
+  "summary_points": [
+    "Modified section 2.1.1.1 (Battery Life Under Typical Use)",
+    "Modified section 3.2 (Cuff Inflation Sequence)",
+    "Modified section 4.2 (Error Codes)",
+    "Modified section 4.3 (Alarm Thresholds)",
+    "Added section 5.3: 'Data Export'",
+    "Parameter changed: Battery life (cycles): '300 cycles' -> '250 cycles'"
+  ]
+}

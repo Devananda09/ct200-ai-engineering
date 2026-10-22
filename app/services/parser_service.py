@@ -5,15 +5,18 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from parser.hierarchy import build_hierarchy, find_node
 from parser.models import (
     DocumentSection,
     ErrorCodeItem,
     ParsedDocument,
     SpecificationParameter,
 )
-from parser.pdf_parser import extract_pdf
+from parser.pdf_parser import extract_pdf, extract_tables
 
 logger = logging.getLogger(__name__)
+
+
 
 
 def normalize_text(text: str) -> str:
@@ -101,7 +104,15 @@ class ParserService:
         raw_text = "\n\n".join(raw_text_parts)
         sections = self._extract_sections(page_texts)
         parameters = self._extract_parameters(sections)
-        error_codes = self._extract_error_codes(sections)
+
+        try:
+            tables = extract_tables(pdf_path)
+        except Exception as e:
+            logger.warning(f"Failed to extract tables from {pdf_path}: {e}")
+            tables = []
+
+        error_codes = self._extract_error_codes(sections, tables=tables)
+        tree = build_hierarchy(sections, tables=tables)
 
         return ParsedDocument(
             id=f"ct200_{version}",
@@ -111,8 +122,12 @@ class ParserService:
             sections=sections,
             parameters=parameters,
             error_codes=error_codes,
+            tables=tables,
+            tree=tree,
             raw_text=raw_text,
         )
+
+
 
     def _extract_sections(self, page_texts: list[tuple[int, str]]) -> list[DocumentSection]:
         current_sec_num: str | None = None
@@ -201,12 +216,39 @@ class ParserService:
                     )
         return params
 
-    def _extract_error_codes(self, sections: list[DocumentSection]) -> list[ErrorCodeItem]:
+    def _extract_error_codes(
+        self,
+        sections: list[DocumentSection],
+        tables: list[dict] | None = None,
+    ) -> list[ErrorCodeItem]:
         error_codes: list[ErrorCodeItem] = []
+
+        # 1. Try extracting directly from structured PDF table
+        if tables:
+            for tab in tables:
+                headers = tab.get("headers", [])
+                if any("Code" in h for h in headers):
+                    for row in tab.get("rows", []):
+                        if len(row) >= 3 and re.match(r"^E\d+", row[0].strip()):
+                            code = row[0].strip()
+                            meaning = " ".join(row[1].split())
+                            behavior = " ".join(row[2].split())
+                            error_codes.append(
+                                ErrorCodeItem(
+                                    code=code,
+                                    meaning=meaning,
+                                    device_behavior=behavior,
+                                    page=tab.get("page_number", 4),
+                                )
+                            )
+            if error_codes:
+                return error_codes
+
+        # 2. Fallback to text parsing
         for sec in sections:
             if sec.section_number == "4.2":
                 lines = [l.strip() for l in sec.content.split("\n") if l.strip()]
-                code_pattern = re.compile(r"^(E[1-5])\s+(.+)$")
+                code_pattern = re.compile(r"^(E[1-6])(?:\s+(.+))?$")
                 curr_code: str | None = None
                 curr_meaning: str = ""
                 curr_behavior: str = ""
@@ -224,10 +266,12 @@ class ParserService:
                                 )
                             )
                         curr_code = m.group(1)
-                        curr_meaning = m.group(2)
+                        curr_meaning = m.group(2) or ""
                         curr_behavior = ""
                     elif curr_code:
-                        if not curr_behavior:
+                        if not curr_meaning:
+                            curr_meaning = line
+                        elif not curr_behavior:
                             curr_behavior = line
                         else:
                             curr_behavior += " " + line
@@ -242,3 +286,9 @@ class ParserService:
                         )
                     )
         return error_codes
+
+
+    def find_node_by_id(self, tree: list, node_id: str):
+        from parser.hierarchy import find_node
+        return find_node(tree, node_id)
+
